@@ -87,11 +87,9 @@ func Has(pattern string) bool {
 	return strings.ContainsAny(pattern, "*?")
 }
 
-// deepMatchRune walks pattern against str one byte at a time, remembering only
-// the most recent '*' to resume from. Trying both alternatives at every '*'
-// instead — as a recursive matcher does — costs time exponential in the number
-// of stars, which a caller-supplied pattern can trigger: a policy action of
-// "*********x" kept AdminAction.IsValid busy for a minute.
+// deepMatchRune matches pattern against str in a single pass, backtracking to
+// the most recent '*'. Recursing on both branches at each '*' is exponential in
+// the star count, which a caller-supplied pattern can trigger.
 func deepMatchRune(str, pattern string) bool {
 	var s, p int
 	// Position of the '*' to resume from, and how much of str it has consumed.

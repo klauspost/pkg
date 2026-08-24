@@ -118,9 +118,8 @@ func (a Args) GetRoleArn() string {
 
 // Policy - iam bucket iamp.
 //
-// The fields below Statements are derived from it by updateActionIndex, so
-// changing Statements on a parsed policy leaves them stale. Call Reindex after
-// doing so.
+// Reindex must be called after changing Statements on a policy that has already
+// been parsed, because the state derived from them is otherwise left stale.
 type Policy struct {
 	ID         ID `json:"ID,omitempty"`
 	Version    string
@@ -131,15 +130,14 @@ type Policy struct {
 	// full walk when the highest index no longer addresses Statements.
 	actionStatementIndex map[Action][]int
 
-	// Whether any statement carries a Deny. See HasDenyStatement for why this
-	// is only a shortcut.
+	// Whether any statement carries a Deny. Only a shortcut, filled in by
+	// updateActionIndex; the statements stay authoritative because a policy
+	// assembled directly never reaches that path, and trusting the field alone
+	// would silently under-report its Deny.
 	hasDeny bool
 }
 
-// HasDenyStatement returns if the policy has a deny statement. hasDeny is only
-// a shortcut, filled in by updateActionIndex; the statements stay authoritative
-// because a policy assembled directly never reaches that path, and trusting the
-// field alone would silently under-report its Deny.
+// HasDenyStatement returns if the policy has a deny statement.
 func (iamp *Policy) HasDenyStatement() bool {
 	if iamp.hasDeny {
 		return true
@@ -569,10 +567,11 @@ func (iamp *Policy) Reindex() {
 	iamp.updateActionIndex()
 }
 
-// updateActionIndex fills the Action -> []Statements reverse lookup by
-// appending, so it discards the derived state first: a repeat call has to
-// replace the previous result rather than accumulate onto it.
+// updateActionIndex fills the Action -> []Statements reverse lookup used to
+// skip statements that cannot match a request action.
 func (iamp *Policy) updateActionIndex() {
+	// Both are appended to below, so a repeat call has to start from nothing
+	// rather than accumulate onto the previous result.
 	iamp.actionStatementIndex = nil
 	iamp.hasDeny = false
 	for i := range iamp.Statements {

@@ -37,16 +37,11 @@ type Statement struct {
 	NotResources ResourceSet         `json:"NotResource,omitempty"`
 	Conditions   condition.Functions `json:"Condition,omitempty"`
 
-	// Namespace classification, filled in by Policy.updateActionIndex. Zero
-	// means "not classified yet" — classify() then derives it on the spot, so a
-	// statement built by a path that does not populate it is slower, never
-	// wrong. Statement.Clone deliberately leaves it zero.
-	//
-	// Replacing Actions on a statement already held by a parsed policy leaves
-	// this stale, and the namespace decides whether Resources are matched at
-	// all, so a stale one can skip that check. Call Policy.Reindex after such a
-	// change; recomputing per evaluation instead costs 60-160% on the
-	// authorization path, which is why the value is cached at all.
+	// Namespace classification, filled in by Policy.updateActionIndex and
+	// cached because recomputing it per evaluation is expensive. Zero means
+	// "not classified yet". Replacing Actions on a statement already held by a
+	// parsed policy leaves this stale, and the namespace decides whether
+	// Resources are matched at all, so call Policy.Reindex after such a change.
 	class statementClass
 }
 
@@ -221,7 +216,8 @@ const (
 func (c statementClass) has(f statementClass) bool { return c&f != 0 }
 
 // classify reports the statement's namespaces, using the value cached at parse
-// time when there is one.
+// time when there is one and deriving it on the spot otherwise — slower, never
+// wrong.
 func (statement Statement) classify() statementClass {
 	if statement.class != 0 {
 		return statement.class
@@ -229,9 +225,7 @@ func (statement Statement) classify() statementClass {
 	return statement.computeClass()
 }
 
-// computeClass walks the action set once. The predicates it stands in for on
-// the authorization path each walked it separately, so a statement paid four
-// map iterator setups per evaluation to learn what one pass can tell it.
+// computeClass walks the action set once.
 func (statement Statement) computeClass() statementClass {
 	c := classKnown
 	for action := range statement.Actions {
@@ -638,7 +632,8 @@ func (statement Statement) Equals(st Statement) bool {
 	return true
 }
 
-// Clone clones Statement structure
+// Clone clones Statement structure. The clone carries no cached namespace
+// classification.
 func (statement Statement) Clone() Statement {
 	return Statement{
 		SID:          statement.SID,

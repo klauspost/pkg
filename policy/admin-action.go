@@ -476,11 +476,7 @@ func (action AdminAction) Match(a AdminAction) bool {
 // IsValid - checks if action is valid or not.
 //
 // The receiver is the pattern, so this asks whether the pattern matches any
-// supported admin action. Statement.isAdmin calls it for every action of every
-// statement it evaluates, so the two cases that can be answered without
-// touching SupportedAdminActions are answered first: a literal action can only
-// match by being in the set, and a pattern is only worth scanning when its
-// literal head is prefix-compatible with the admin namespace.
+// supported admin action.
 func (action AdminAction) IsValid() bool {
 	if _, ok := SupportedAdminActions[action]; ok {
 		return true
@@ -488,9 +484,13 @@ func (action AdminAction) IsValid() bool {
 	s := string(action)
 	star := strings.IndexAny(s, "*?")
 	if star < 0 {
+		// A literal action can only match by being in the set above.
 		return false
 	}
 	if !canMatchPrefix(s[:star], adminActionPrefix) {
+		// computeClass runs this for every action of every statement it
+		// classifies, so a pattern is only scanned against the whole set when
+		// its literal head is prefix-compatible with the admin namespace.
 		return false
 	}
 	for supAction := range SupportedAdminActions {
